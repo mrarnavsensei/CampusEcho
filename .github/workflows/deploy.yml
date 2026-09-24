@@ -1,0 +1,55 @@
+name: Deploy reviewed release
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment with configured secrets, variables and protection rules
+        type: choice
+        options: [staging, production]
+        required: true
+      acceptance_complete:
+        description: Required for production; staging acceptance and recovery drill recorded
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main' && (inputs.environment == 'staging' || inputs.acceptance_complete)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ inputs.environment }}
+    env:
+      TARGET_ENVIRONMENT: ${{ inputs.environment }}
+      DEPLOY_WORKER_NAME: ${{ vars.DEPLOY_WORKER_NAME }}
+      DEPLOY_DB_NAME: ${{ vars.DEPLOY_DB_NAME }}
+      DEPLOY_DB_ID: ${{ vars.DEPLOY_DB_ID }}
+      DEPLOY_APP_URL: ${{ vars.DEPLOY_APP_URL }}
+      DEPLOY_EMAIL_FROM: ${{ vars.DEPLOY_EMAIL_FROM }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium firefox webkit
+      - run: pnpm exec wrangler d1 migrations apply site-creator-d1 --local --config wrangler.migrations.jsonc
+      - run: npm run test:browser
+      - run: npm run check
+      - run: node scripts/create-deployment.mjs "$TARGET_ENVIRONMENT"
+      - run: node scripts/check-deployment.mjs "deployment.$TARGET_ENVIRONMENT.local.jsonc"
+      - run: pnpm exec wrangler deploy --dry-run --config "deployment.$TARGET_ENVIRONMENT.local.jsonc"
+      - name: Publish application (database migrations and Worker secrets are operator-managed)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler deploy --config "deployment.$TARGET_ENVIRONMENT.local.jsonc"
+      - run: node scripts/check-health.mjs "$DEPLOY_APP_URL"

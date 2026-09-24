@@ -1,0 +1,26 @@
+name: Availability probe
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: availability-probe
+  cancel-in-progress: false
+jobs:
+  health:
+    if: vars.MONITOR_APP_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check database readiness and real page
+        env:
+          MONITOR_APP_URL: ${{ vars.MONITOR_APP_URL }}
+        run: node scripts/check-health.mjs "$MONITOR_APP_URL"

@@ -1,0 +1,39 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Generate ignored deployment.staging.local.jsonc and deployment.production.local.jsonc separately.
+  "name": "campuscrate-echo-staging",
+  "main": "dist/server/index.js",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "no_bundle": true,
+  "rules": [{ "type": "ESModule", "globs": ["**/*.js", "**/*.mjs"] }],
+  "assets": { "directory": "dist/client" },
+  "observability": { "enabled": true },
+  "vars": {
+    "APP_ENV": "staging",
+    "ENABLE_LOCAL_AUTH": "false",
+    "APP_URL": "https://REPLACE_WITH_YOUR_STAGING_HOST",
+    "EMAIL_FROM": "CampusCrate Echo <REPLACE_WITH_VERIFIED_SENDER>",
+    "POLICY_STATUS": "draft",
+    "POLICY_OPERATOR_NAME": "TO COMPLETE",
+    "POLICY_SUPPORT_CONTACT": "TO COMPLETE",
+    "POLICY_PRIVACY_CONTACT": "TO COMPLETE",
+    "POLICY_GRIEVANCE_CONTACT": "TO COMPLETE",
+    "POLICY_URGENT_SAFETY_CONTACT": "TO COMPLETE",
+    "POLICY_APPEAL_CONTACT": "TO COMPLETE",
+    "POLICY_SUPPORT_RESPONSE_TARGET": "TO COMPLETE",
+    "POLICY_EFFECTIVE_DATE": "TO COMPLETE",
+    "POLICY_VERSION": "TO COMPLETE",
+    "POLICY_LAUNCH_REGIONS": "TO COMPLETE",
+    "POLICY_MINIMUM_AGE": "18",
+    "POLICY_ENROLLMENT_CRITERIA": "TO COMPLETE",
+    "POLICY_PROVIDER_SUMMARY": "TO COMPLETE",
+    "POLICY_RETENTION_SUMMARY": "TO COMPLETE"
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "campuscrate-echo-staging",
+    "database_id": "REPLACE_WITH_REAL_D1_DATABASE_UUID",
+    "migrations_dir": "drizzle-production"
+  }]
+}

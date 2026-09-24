@@ -1,0 +1,24 @@
+import assert from "node:assert/strict";
+const base = new URL(process.env.TEST_BASE_URL || "http://localhost:5173");
+assert.ok(["localhost", "127.0.0.1", "[::1]"].includes(base.hostname), "Smoke tests are local only");
+const get = path => fetch(new URL(path, base), { redirect: "manual", signal: AbortSignal.timeout(30_000) });
+let checks = 0;
+const first = await get("/"), second = await get("/");
+assert.equal(first.status, 200); checks++;
+const policy = first.headers.get("content-security-policy") || "";
+const nonce = /'nonce-([^']+)'/.exec(policy)?.[1];
+assert.ok(nonce && nonce.length >= 24, "Rendered page needs a per-request script nonce"); checks++;
+assert.notEqual(policy, second.headers.get("content-security-policy"), "Nonce must change per response"); checks++;
+assert.ok(!/script-src[^;]*'unsafe-inline'/.test(policy)); checks++;
+const html = await first.text(), scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
+assert.ok(scripts.length > 0); checks++;
+for (const [, attributes, content] of scripts) {
+  if (content.trim() && !/type=["']application\/(?:ld\+)?json["']/.test(attributes)) assert.ok(attributes.includes(`nonce="${nonce}"`), "Every inline executable script must match CSP nonce");
+} checks++;
+assert.match(first.headers.get("cache-control") || "", /no-store/); checks++;
+assert.equal(first.headers.get("x-content-type-options"), "nosniff"); checks++;
+const health = await get("/api/health"); assert.equal(health.status, 200); assert.equal((await health.json()).database, "reachable"); checks++;
+const protectedPage = await get("/admin/dashboard"); assert.ok([302, 303, 307, 308].includes(protectedPage.status)); assert.ok(protectedPage.headers.get("location")?.includes("/admin/login")); checks++;
+const posts = await get("/api/posts"); assert.equal(posts.status, 401); checks++;
+const offline = await fetch(new URL("/offline.html", base), { signal: AbortSignal.timeout(30_000) }); assert.equal(offline.status, 200); checks++;
+console.log(`PASS: ${checks} HTTP/HTML security smoke checks against ${base.origin}. This checks delivered markup/headers, not browser execution or visual layout.`);
